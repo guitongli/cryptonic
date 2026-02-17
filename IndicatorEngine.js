@@ -9,6 +9,9 @@ const TradeAcceleration = require('./indicators/TradeAcceleration');
 const LargeTradeFilter  = require('./indicators/LargeTradeFilter');
 const VolumeClassifier  = require('./indicators/VolumeClassifier');
 const IcebergDetector   = require('./indicators/IcebergDetector');
+const VolumeIntensity   = require('./indicators/VolumeIntensity');
+const BidAskImbalance   = require('./indicators/BidAskImbalance');
+const LiquidationFeed   = require('./indicators/LiquidationFeed');
 
 /**
  * IndicatorEngine
@@ -36,6 +39,9 @@ class IndicatorEngine extends EventEmitter {
     this._largeTrade    = new LargeTradeFilter();
     this._volClassifier = new VolumeClassifier();
     this._iceberg       = new IcebergDetector();
+    this._volIntensity  = new VolumeIntensity();
+    this._bidAskImbal   = new BidAskImbalance();
+    this._liqFeed       = new LiquidationFeed();
 
     // ── shared state snapshot ───────────────────────────────────────────────
     this._state = {
@@ -46,6 +52,9 @@ class IndicatorEngine extends EventEmitter {
       largeTradeFilter:  {},
       volumeClassifier:  {},
       icebergDetector:   {},
+      volumeIntensity:   {},
+      bidAskImbalance:   {},
+      liquidationFeed:   {},
       bookTicker:        null,
       kline:             null,
       lastLiquidation:   null,
@@ -94,6 +103,8 @@ class IndicatorEngine extends EventEmitter {
     this._volClassifier.update(trade);
 
     const iceberg = this._iceberg.update(trade);
+
+    this._volIntensity.update(trade);
 
     // Console alerts
     if (largeTrade.flagged) {
@@ -146,6 +157,9 @@ class IndicatorEngine extends EventEmitter {
       asks: (msg.a || []).slice(0, 5),
       ts:   msg.T || Date.now(),
     };
+
+    this._bidAskImbal.update(msg);
+    this._state.bidAskImbalance = this._bidAskImbal.getState();
   }
 
   _onForceOrder(msg) {
@@ -166,6 +180,16 @@ class IndicatorEngine extends EventEmitter {
       ts:       Date.now(),
     };
 
+    const liqResult = this._liqFeed.update(msg);
+    this._state.liquidationFeed = this._liqFeed.getState();
+
+    if (liqResult.cascade) {
+      console.log(
+        `[CascadeAlert] ${liqResult.signal} — ${this._liqFeed._history.length} liquidations ` +
+        `(${liqResult.side}) in ${this._liqFeed.cascadeWindowMs / 1000}s`
+      );
+    }
+
     this.emit('liquidation', this._state.lastLiquidation);
   }
 
@@ -177,6 +201,7 @@ class IndicatorEngine extends EventEmitter {
     this._state.largeTradeFilter  = this._largeTrade.getState();
     this._state.volumeClassifier  = this._volClassifier.getState();
     this._state.icebergDetector   = this._iceberg.getState();
+    this._state.volumeIntensity   = this._volIntensity.getState();
     this._state.timestamp         = Date.now();
   }
 }

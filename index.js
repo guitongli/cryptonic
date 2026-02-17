@@ -46,10 +46,15 @@ setInterval(() => {
   const price   = s.bookTicker
     ? `${s.bookTicker.bestBid} / ${s.bookTicker.bestAsk}`
     : '— / —';
+  const volInt  = s.volumeIntensity?.value?.toFixed(2)   ?? '—';
+  const volSig  = s.volumeIntensity?.signal              ?? '—';
+  const imbal   = s.bidAskImbalance?.value?.toFixed(3)   ?? '—';
+  const liqCasc = s.liquidationFeed?.cascade ? 'CASCADE' : '—';
 
   console.log(
     `[Snapshot] tape=${tape}  Δ=${delta}  rate=${rate}tps  accel=${accel}  ` +
-    `spread=${spread}  bid/ask=${price}`
+    `spread=${spread}  bid/ask=${price}  volInt=${volInt}(${volSig})  ` +
+    `imbal=${imbal}  liq=${liqCasc}`
   );
 }, 5000);
 
