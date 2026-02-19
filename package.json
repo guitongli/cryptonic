@@ -2,9 +2,9 @@
   "name": "cryptonic",
   "version": "1.0.0",
   "description": "Cryptocurrency day trading sonification backend — real-time indicator engine",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
