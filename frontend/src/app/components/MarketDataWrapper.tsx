@@ -1,0 +1,187 @@
+import React, { useState, useEffect, createContext, useContext } from 'react';
+
+export interface MarketEvent {
+  id: string;
+  symbol: string;
+  price: number;
+  size: number;
+  side: 'buy' | 'sell';
+  timestamp: number;
+}
+
+export interface Liquidation {
+  id: string;
+  symbol: string;
+  amount: number;
+  price: number;
+  side: 'long' | 'short';
+  timestamp: number;
+}
+
+export interface MarketState {
+  currentPrice: number;
+  priceChange: number;
+  volatility: number;
+  sentiment: number; // -1 to 1 (tapePressure.value)
+  tape: MarketEvent[];
+  liquidations: Liquidation[];
+  deltaData: { time: string; delta: number }[];
+  raw: Record<string, any>; // full backend SSE state
+}
+
+const defaultState: MarketState = {
+  currentPrice: 0,
+  priceChange: 0,
+  volatility: 0,
+  sentiment: 0,
+  tape: [],
+  liquidations: [],
+  deltaData: Array.from({ length: 30 }, (_, i) => ({ time: `${i}:00`, delta: 0 })),
+  raw: {},
+};
+
+const MarketDataContext = createContext<MarketState | undefined>(undefined);
+
+export const useMarketData = () => {
+  const context = useContext(MarketDataContext);
+  if (!context) throw new Error('useMarketData must be used within MarketDataProvider');
+  return context;
+};
+
+export const MarketDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [state, setState] = useState<MarketState>(defaultState);
+
+  // ── SSE: backend indicator state ──────────────────────────────────────────
+  useEffect(() => {
+    let es: EventSource;
+    let lastLiqTs = 0;
+
+    const connect = () => {
+      es = new EventSource('http://localhost:3000/stream');
+
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+
+          setState((prev) => {
+            const bookTicker = data.bookTicker;
+            const kline = data.kline;
+
+            // Price: mid of best bid/ask, fallback to kline close
+            const currentPrice = bookTicker
+              ? (bookTicker.bestBid + bookTicker.bestAsk) / 2
+              : kline?.close ?? prev.currentPrice;
+
+            // Price change % from kline open→close
+            const priceChange =
+              kline && kline.open && kline.open > 0
+                ? ((kline.close - kline.open) / kline.open) * 100
+                : prev.priceChange;
+
+            // Volatility: volumeIntensity multiplier normalised 0-1
+            const volatility =
+              data.volumeIntensity?.value != null
+                ? Math.min(data.volumeIntensity.value / 3, 1)
+                : prev.volatility;
+
+            // Sentiment: tapePressure.value (-1 to +1)
+            const sentiment = data.tapePressure?.value ?? prev.sentiment;
+
+            // Delta history: append current delta value
+            const deltaVal = (data.cumulativeDelta?.delta ?? 0) * 10; // scale for display
+            const newEntry = {
+              time: new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              }),
+              delta: deltaVal,
+            };
+            const deltaData = [...prev.deltaData.slice(-29), newEntry];
+
+            // Liquidations: accumulate new events by timestamp
+            let liquidations = prev.liquidations;
+            const lastLiq = data.lastLiquidation;
+            if (lastLiq && lastLiq.ts && lastLiq.ts !== lastLiqTs) {
+              lastLiqTs = lastLiq.ts;
+              const newLiq: Liquidation = {
+                id: String(lastLiq.ts),
+                symbol: 'ETH/USDT',
+                amount: lastLiq.notional,
+                price: lastLiq.avgPrice,
+                // SELL = long position liquidated; BUY = short position liquidated
+                side: lastLiq.side === 'SELL' ? 'long' : 'short',
+                timestamp: lastLiq.ts,
+              };
+              liquidations = [newLiq, ...prev.liquidations].slice(0, 20);
+            }
+
+            return {
+              ...prev,
+              currentPrice,
+              priceChange,
+              volatility,
+              sentiment,
+              deltaData,
+              liquidations,
+              raw: data,
+            };
+          });
+        } catch (_) {
+          // ignore parse errors
+        }
+      };
+
+      es.onerror = () => {
+        es.close();
+        setTimeout(connect, 2000);
+      };
+    };
+
+    connect();
+    return () => es && es.close();
+  }, []);
+
+  // ── WebSocket: real-time tape from Binance ────────────────────────────────
+  useEffect(() => {
+    let ws: WebSocket;
+    let reconnectTimer: ReturnType<typeof setTimeout>;
+
+    const connect = () => {
+      ws = new WebSocket('wss://fstream.binance.com/ws/ethusdt@aggTrade');
+
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        const event: MarketEvent = {
+          id: String(msg.a),
+          symbol: 'ETH/USDT',
+          price: parseFloat(msg.p),
+          size: parseFloat(msg.q),
+          side: !msg.m ? 'buy' : 'sell', // m=false → taker buy
+          timestamp: msg.T,
+        };
+        setState((prev) => ({
+          ...prev,
+          tape: [event, ...prev.tape].slice(0, 50),
+        }));
+      };
+
+      ws.onclose = () => {
+        reconnectTimer = setTimeout(connect, 1000);
+      };
+      ws.onerror = () => ws.close();
+    };
+
+    connect();
+    return () => {
+      ws && ws.close();
+      clearTimeout(reconnectTimer);
+    };
+  }, []);
+
+  return (
+    <MarketDataContext.Provider value={state}>
+      {children}
+    </MarketDataContext.Provider>
+  );
+};

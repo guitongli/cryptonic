@@ -1,5 +1,10 @@
-import Dashboard from './Dashboard'
+import { Dashboard } from './app/components/Dashboard'
+import { MarketDataProvider } from './app/components/MarketDataWrapper'
 
 export default function App() {
-  return <Dashboard />
+  return (
+    <MarketDataProvider>
+      <Dashboard />
+    </MarketDataProvider>
+  )
 }
