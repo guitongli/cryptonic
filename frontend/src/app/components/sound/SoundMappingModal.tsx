@@ -25,6 +25,116 @@ interface Props {
   onSaved: () => void;
 }
 
+// ── Shared UI helpers (must live outside SoundMappingModal to keep stable refs) ─
+
+function Input({ label, value, onChange, type = 'text', placeholder = '' }: {
+  label: string; value: string | number; onChange: (v: string) => void;
+  type?: string; placeholder?: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] text-white/40 uppercase tracking-widest font-bold">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-blue-500/50 transition-colors text-white placeholder-white/20"
+      />
+    </div>
+  );
+}
+
+function Select<T extends string>({ label, value, onChange, options }: {
+  label: string; value: T; onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] text-white/40 uppercase tracking-widest font-bold">{label}</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value as T)}
+        className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/50 transition-colors text-white"
+      >
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function ConditionEditor({ cond, onChange }: { cond: Condition; onChange: (c: Condition) => void }) {
+  return (
+    <div className="space-y-3">
+      <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Condition</div>
+      <div className="flex gap-2">
+        <select
+          value={cond.op}
+          onChange={e => onChange({ ...cond, op: e.target.value as Condition['op'] })}
+          className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/50 text-white"
+        >
+          <option value="crosses_above">Crosses above</option>
+          <option value="crosses_below">Crosses below</option>
+          <option value="above">Is above</option>
+          <option value="below">Is below</option>
+          <option value="equals">Equals</option>
+        </select>
+        <input
+          type="number"
+          value={cond.value}
+          onChange={e => onChange({ ...cond, value: parseFloat(e.target.value) || 0 })}
+          className="w-28 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-blue-500/50 text-white"
+          step="0.01"
+        />
+      </div>
+    </div>
+  );
+}
+
+function RangeRow({ label, from, to, onFrom, onTo }: {
+  label: string; from: number; to: number;
+  onFrom: (v: number) => void; onTo: (v: number) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold">{label}</div>
+      <div className="flex gap-2 items-center">
+        <input type="number" value={from} onChange={e => onFrom(parseFloat(e.target.value) || 0)}
+          className="w-28 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-blue-500/50 text-white" step="0.01" />
+        <span className="text-white/30 text-sm">to</span>
+        <input type="number" value={to} onChange={e => onTo(parseFloat(e.target.value) || 0)}
+          className="w-28 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-blue-500/50 text-white" step="0.01" />
+      </div>
+    </div>
+  );
+}
+
+function Footer({ onBack, onSave, saveDisabled = false }: {
+  onBack: () => void; onSave: () => void; saveDisabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between mt-6 pt-4 border-t border-white/10">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-white/40 hover:text-white text-sm transition-colors">
+        <ChevronLeft className="w-4 h-4" /> Back
+      </button>
+      <button
+        onClick={onSave}
+        disabled={saveDisabled}
+        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors"
+      >
+        Save <ArrowRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+const FX_OPTIONS: { value: FXType; label: string }[] = [
+  { value: 'reverb', label: 'Reverb (room size)' },
+  { value: 'filter', label: 'Low-pass Filter (muffle)' },
+  { value: 'distortion', label: 'Distortion (drive)' },
+  { value: 'tremolo', label: 'Tremolo (wobble)' },
+];
+
 // ── Sub-form defaults ──────────────────────────────────────────────────────────
 
 const defaultCondition: Condition = { op: 'crosses_above', value: 0 };
@@ -207,104 +317,6 @@ export function SoundMappingModal({ indicatorName, isOpen, onClose, onSaved }: P
     }
   }
 
-  // ── Shared UI helpers ────────────────────────────────────────────────────────
-
-  const Input = ({ label, value, onChange, type = 'text', placeholder = '' }: {
-    label: string; value: string | number; onChange: (v: string) => void;
-    type?: string; placeholder?: string;
-  }) => (
-    <div className="space-y-1.5">
-      <label className="text-[10px] text-white/40 uppercase tracking-widest font-bold">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-blue-500/50 transition-colors text-white placeholder-white/20"
-      />
-    </div>
-  );
-
-  const Select = <T extends string>({ label, value, onChange, options }: {
-    label: string; value: T; onChange: (v: T) => void;
-    options: { value: T; label: string }[];
-  }) => (
-    <div className="space-y-1.5">
-      <label className="text-[10px] text-white/40 uppercase tracking-widest font-bold">{label}</label>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value as T)}
-        className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/50 transition-colors text-white"
-      >
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </div>
-  );
-
-  const ConditionEditor = ({ cond, onChange }: { cond: Condition; onChange: (c: Condition) => void }) => (
-    <div className="space-y-3">
-      <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Condition</div>
-      <div className="flex gap-2">
-        <select
-          value={cond.op}
-          onChange={e => onChange({ ...cond, op: e.target.value as Condition['op'] })}
-          className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/50 text-white"
-        >
-          <option value="crosses_above">Crosses above</option>
-          <option value="crosses_below">Crosses below</option>
-          <option value="above">Is above</option>
-          <option value="below">Is below</option>
-          <option value="equals">Equals</option>
-        </select>
-        <input
-          type="number"
-          value={cond.value}
-          onChange={e => onChange({ ...cond, value: parseFloat(e.target.value) || 0 })}
-          className="w-28 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-blue-500/50 text-white"
-          step="0.01"
-        />
-      </div>
-    </div>
-  );
-
-  const RangeRow = ({ label, from, to, onFrom, onTo }: {
-    label: string; from: number; to: number;
-    onFrom: (v: number) => void; onTo: (v: number) => void;
-  }) => (
-    <div className="space-y-1.5">
-      <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold">{label}</div>
-      <div className="flex gap-2 items-center">
-        <input type="number" value={from} onChange={e => onFrom(parseFloat(e.target.value)||0)}
-          className="w-28 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-blue-500/50 text-white" step="0.01" />
-        <span className="text-white/30 text-sm">to</span>
-        <input type="number" value={to} onChange={e => onTo(parseFloat(e.target.value)||0)}
-          className="w-28 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-blue-500/50 text-white" step="0.01" />
-      </div>
-    </div>
-  );
-
-  const Footer = ({ onSave, saveDisabled = false }: { onSave: () => void; saveDisabled?: boolean }) => (
-    <div className="flex items-center justify-between mt-6 pt-4 border-t border-white/10">
-      <button onClick={goBack} className="flex items-center gap-1.5 text-white/40 hover:text-white text-sm transition-colors">
-        <ChevronLeft className="w-4 h-4" /> Back
-      </button>
-      <button
-        onClick={onSave}
-        disabled={saveDisabled}
-        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors"
-      >
-        Save <ArrowRight className="w-4 h-4" />
-      </button>
-    </div>
-  );
-
-  const FXOptions: { value: FXType; label: string }[] = [
-    { value: 'reverb', label: 'Reverb (room size)' },
-    { value: 'filter', label: 'Low-pass Filter (muffle)' },
-    { value: 'distortion', label: 'Distortion (drive)' },
-    { value: 'tremolo', label: 'Tremolo (wobble)' },
-  ];
-
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -406,7 +418,7 @@ export function SoundMappingModal({ indicatorName, isOpen, onClose, onSaved }: P
               options={AVAILABLE_SOUNDS.map(s => ({ value: s.file, label: s.label }))}
             />
             <ConditionEditor cond={esCond} onChange={setEsCond} />
-            <Footer onSave={saveEventSample} saveDisabled={!esLabel.trim()} />
+            <Footer onBack={goBack} onSave={saveEventSample} saveDisabled={!esLabel.trim()} />
           </div>
         )}
 
@@ -448,7 +460,7 @@ export function SoundMappingModal({ indicatorName, isOpen, onClose, onSaved }: P
               onFrom={v => setLsSlowBPM(v)} onTo={v => setLsFastBPM(v)}
             />
             <Input label="Min delta to trigger arpeggio" value={lsDelta} onChange={v => setLsDelta(parseFloat(v)||0)} type="number" placeholder="0.01" />
-            <Footer onSave={saveLevelSample} saveDisabled={!lsLabel.trim()} />
+            <Footer onBack={goBack} onSave={saveLevelSample} saveDisabled={!lsLabel.trim()} />
           </div>
         )}
 
@@ -470,7 +482,7 @@ export function SoundMappingModal({ indicatorName, isOpen, onClose, onSaved }: P
                     }))
               }
             />
-            <Select<FXType> label="FX" value={ecFX} onChange={setEcFX} options={FXOptions} />
+            <Select<FXType> label="FX" value={ecFX} onChange={setEcFX} options={FX_OPTIONS}/>
             <Select<'enter'|'exit'|'both'>
               label="Apply when"
               value={ecApply}
@@ -482,7 +494,7 @@ export function SoundMappingModal({ indicatorName, isOpen, onClose, onSaved }: P
               ]}
             />
             <ConditionEditor cond={ecCond} onChange={setEcCond} />
-            <Footer onSave={saveEventControl} saveDisabled={!ecLabel.trim() || !ecTarget} />
+            <Footer onBack={goBack} onSave={saveEventControl} saveDisabled={!ecLabel.trim() || !ecTarget} />
           </div>
         )}
 
@@ -504,7 +516,7 @@ export function SoundMappingModal({ indicatorName, isOpen, onClose, onSaved }: P
                     }))
               }
             />
-            <Select<FXType> label="FX" value={lcFX} onChange={setLcFX} options={FXOptions} />
+            <Select<FXType> label="FX" value={lcFX} onChange={setLcFX} options={FX_OPTIONS}/>
             <RangeRow
               label={`Indicator range (${meta.label})`}
               from={lcFrom} to={lcTo}
@@ -515,7 +527,7 @@ export function SoundMappingModal({ indicatorName, isOpen, onClose, onSaved }: P
               from={lcMixFrom} to={lcMixTo}
               onFrom={v => setLcMixFrom(v)} onTo={v => setLcMixTo(v)}
             />
-            <Footer onSave={saveLevelControl} saveDisabled={!lcLabel.trim() || !lcTarget} />
+            <Footer onBack={goBack} onSave={saveLevelControl} saveDisabled={!lcLabel.trim() || !lcTarget} />
           </div>
         )}
 
