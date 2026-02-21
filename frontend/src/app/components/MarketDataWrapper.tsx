@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
 
 export interface MarketEvent {
   id: string;
@@ -7,6 +7,7 @@ export interface MarketEvent {
   size: number;
   side: 'buy' | 'sell';
   timestamp: number;
+  count: number; // trades aggregated in this 1-second bucket
 }
 
 export interface Liquidation {
@@ -50,6 +51,8 @@ export const useMarketData = () => {
 
 export const MarketDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<MarketState>(defaultState);
+  // Raw trade buffer — written by WebSocket, drained by 1-second interval
+  const tradeBuffer = useRef<Array<{ price: number; size: number; side: 'buy' | 'sell' }>>([]);
 
   // ── SSE: backend indicator state ──────────────────────────────────────────
   useEffect(() => {
@@ -147,28 +150,43 @@ export const MarketDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     let ws: WebSocket;
     let reconnectTimer: ReturnType<typeof setTimeout>;
 
+    // Drain the buffer once per second and emit one aggregated tape entry
+    const interval = setInterval(() => {
+      const trades = tradeBuffer.current.splice(0); // drain
+      if (trades.length === 0) return;
+
+      const buySz  = trades.filter(t => t.side === 'buy').reduce((s, t) => s + t.size, 0);
+      const sellSz = trades.filter(t => t.side === 'sell').reduce((s, t) => s + t.size, 0);
+
+      const event: MarketEvent = {
+        id: `agg-${Date.now()}`,
+        symbol: 'ETH/USDT',
+        price: trades[trades.length - 1].price, // last price in the second
+        size: buySz + sellSz,
+        side: buySz >= sellSz ? 'buy' : 'sell',
+        timestamp: Date.now(),
+        count: trades.length,
+      };
+
+      setState((prev) => ({
+        ...prev,
+        tape: [event, ...prev.tape].slice(0, 20),
+      }));
+    }, 1000);
+
     const connect = () => {
       ws = new WebSocket('wss://fstream.binance.com/ws/ethusdt@aggTrade');
 
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
-        const event: MarketEvent = {
-          id: String(msg.a),
-          symbol: 'ETH/USDT',
+        tradeBuffer.current.push({
           price: parseFloat(msg.p),
           size: parseFloat(msg.q),
-          side: !msg.m ? 'buy' : 'sell', // m=false → taker buy
-          timestamp: msg.T,
-        };
-        setState((prev) => ({
-          ...prev,
-          tape: [event, ...prev.tape].slice(0, 20),
-        }));
+          side: !msg.m ? 'buy' : 'sell',
+        });
       };
 
-      ws.onclose = () => {
-        reconnectTimer = setTimeout(connect, 1000);
-      };
+      ws.onclose = () => { reconnectTimer = setTimeout(connect, 1000); };
       ws.onerror = () => ws.close();
     };
 
@@ -176,6 +194,7 @@ export const MarketDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => {
       ws && ws.close();
       clearTimeout(reconnectTimer);
+      clearInterval(interval);
     };
   }, []);
 

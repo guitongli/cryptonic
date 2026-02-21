@@ -31,7 +31,7 @@ export const TapeFeed: React.FC = () => {
         <div className="flex-1">Price</div>
         <div className="w-20">Bar</div>
         <div className="w-16 text-right">Size</div>
-        <div className="w-10 text-right">Side</div>
+        <div className="w-10 text-right">#</div>
       </div>
 
       {tape.length === 0 ? (
@@ -91,8 +91,8 @@ export const TapeFeed: React.FC = () => {
                     <div className="w-16 text-right text-white/60">
                       {event.size.toFixed(3)}
                     </div>
-                    <div className={`w-10 text-right text-[10px] font-bold ${isBuy ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {isBuy ? 'BUY' : 'SELL'}
+                    <div className={`w-10 text-right text-[10px] font-bold tabular-nums ${isBuy ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {event.count}
                     </div>
                   </motion.div>
                 );
