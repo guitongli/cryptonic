@@ -10,7 +10,7 @@ export const TapeFeed: React.FC = () => {
   const maxSize = tape.length > 0 ? Math.max(...tape.map(t => t.size)) : 1;
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col max-h-[500px] overflow-hidden">
+    <div className="bg-white/5 border border-white/10 rounded-2xl p-6 h-full flex flex-col overflow-hidden">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-white font-bold text-lg">Tape Feed</h3>

@@ -47,7 +47,7 @@ export const Dashboard: React.FC = () => {
         {/* Section 2 + 3: Tape Feed + Indicator Row */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Section 2: Tape Feed */}
-          <div className="lg:col-span-4 self-start">
+          <div className="lg:col-span-4">
             <TapeFeed />
           </div>
 

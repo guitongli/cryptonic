@@ -170,7 +170,7 @@ export const MarketDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       setState((prev) => ({
         ...prev,
-        tape: [event, ...prev.tape].slice(0, 50),
+        tape: [event, ...prev.tape].slice(0, 100),
       }));
     }, 1000);
 
