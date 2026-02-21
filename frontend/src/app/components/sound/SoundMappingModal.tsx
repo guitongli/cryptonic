@@ -4,7 +4,7 @@ import { getMappings, addMapping } from '../../../audio/MappingStore';
 import {
   AVAILABLE_SOUNDS, INDICATOR_META,
   type StoredMapping, type MappingConfig, type Condition,
-  type Scale, type ArpeggioDirection, type FXType,
+  type Scale, type FXType,
 } from '../../../audio/types';
 import { audioEngine } from '../../../audio/AudioEngine';
 
@@ -165,12 +165,8 @@ export function SoundMappingModal({ indicatorName, isOpen, onClose, onSaved }: P
   // Form fields — level_sample
   const [lsLabel, setLsLabel] = useState('');
   const [lsScale, setLsScale] = useState<Scale>('pentatonic_major');
-  const [lsDir, setLsDir] = useState<ArpeggioDirection>('up');
   const [lsFrom, setLsFrom] = useState(meta.defaultMin);
   const [lsTo,   setLsTo]   = useState(meta.defaultMax);
-  const [lsSlowBPM, setLsSlowBPM] = useState(60);
-  const [lsFastBPM, setLsFastBPM] = useState(160);
-  const [lsDelta,   setLsDelta]   = useState(0.01);
 
   // Form fields — event_control
   const [ecLabel,  setEcLabel]  = useState('');
@@ -260,9 +256,6 @@ export function SoundMappingModal({ indicatorName, isOpen, onClose, onSaved }: P
       instrument: 'harp',
       from_value: lsFrom,
       to_value: lsTo,
-      arpeggio_direction: lsDir,
-      tempo_mapping: { slow_bpm: lsSlowBPM, fast_bpm: lsFastBPM },
-      delta_threshold: lsDelta,
       scale: lsScale,
     });
   }
@@ -426,7 +419,7 @@ export function SoundMappingModal({ indicatorName, isOpen, onClose, onSaved }: P
         {step === 'level_sample' && (
           <div className="space-y-4">
             <div className="text-xs text-purple-400 font-bold uppercase tracking-widest">Level → Harp Arpeggio</div>
-            <Input label="Label" value={lsLabel} onChange={setLsLabel} placeholder="e.g. Pressure Harp" />
+            <Input label="Label" value={lsLabel} onChange={setLsLabel} placeholder="e.g. Pressure Tone" />
             <Select<Scale>
               label="Scale"
               value={lsScale}
@@ -439,27 +432,11 @@ export function SoundMappingModal({ indicatorName, isOpen, onClose, onSaved }: P
                 { value: 'chromatic', label: 'Chromatic (all notes)' },
               ]}
             />
-            <Select<ArpeggioDirection>
-              label="Arpeggio Direction"
-              value={lsDir}
-              onChange={setLsDir}
-              options={[
-                { value: 'up', label: 'Up ↑' },
-                { value: 'down', label: 'Down ↓' },
-                { value: 'mirror', label: 'Mirror ↑↓' },
-              ]}
-            />
             <RangeRow
               label={`Indicator range (${meta.label})`}
               from={lsFrom} to={lsTo}
               onFrom={v => setLsFrom(v)} onTo={v => setLsTo(v)}
             />
-            <RangeRow
-              label="Tempo (BPM: slow → fast)"
-              from={lsSlowBPM} to={lsFastBPM}
-              onFrom={v => setLsSlowBPM(v)} onTo={v => setLsFastBPM(v)}
-            />
-            <Input label="Min delta to trigger arpeggio" value={lsDelta} onChange={v => setLsDelta(parseFloat(v)||0)} type="number" placeholder="0.01" />
             <Footer onBack={goBack} onSave={saveLevelSample} saveDisabled={!lsLabel.trim()} />
           </div>
         )}

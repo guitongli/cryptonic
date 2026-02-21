@@ -65,19 +65,17 @@ function evaluateMapping(
     case 'level_sample': {
       const current = currentValues.get(stored.indicatorName);
       if (current === undefined) return;
-      const previous = prevValues.get(stored.indicatorName);
-      const delta = previous !== undefined ? Math.abs(current - previous) : 0;
       const inRange = current >= config.from_value && current <= config.to_value;
       const isActive = activeHarps.has(config.synth_id);
 
-      if (inRange && delta >= config.delta_threshold) {
+      if (inRange) {
         if (!isActive) {
           audioEngine.startHarp(config.synth_id, config, current);
           activeHarps.add(config.synth_id);
         } else {
           audioEngine.updateHarpValue(config.synth_id, current);
         }
-      } else if (!inRange && isActive) {
+      } else if (isActive) {
         audioEngine.stopHarp(config.synth_id);
         activeHarps.delete(config.synth_id);
       }

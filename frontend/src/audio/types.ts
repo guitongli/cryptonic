@@ -18,8 +18,6 @@ export type FXConfig = {
   // tremolo    → depth       0.0–1.0
 };
 
-export type ArpeggioDirection = 'up' | 'down' | 'mirror';
-
 export type Scale =
   | 'pentatonic_major'
   | 'pentatonic_minor'
@@ -44,10 +42,7 @@ export type MappingConfig =
       instrument: 'harp';
       from_value: number;
       to_value: number;
-      arpeggio_direction: ArpeggioDirection;
-      tempo_mapping: { slow_bpm: number; fast_bpm: number };
-      delta_threshold: number; // min delta to trigger arpeggio
-      scale: Scale;
+      scale: Scale;           // pitch snapped to this scale
     }
   | {
       kind: 'event_control';

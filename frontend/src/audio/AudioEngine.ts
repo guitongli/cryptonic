@@ -1,12 +1,8 @@
-import type { FXType, FXConfig, Scale, ArpeggioDirection, MappingConfig } from './types';
+import type { FXType, FXConfig, Scale, MappingConfig } from './types';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const HARP_LOOKAHEAD_S  = 0.1;   // schedule 100ms ahead
-const HARP_TICK_MS      = 50;    // scheduler tick every 50ms
-const FX_FADE_S         = 0.3;   // default FX fade duration
-const PLUCK_ATTACK_S    = 0.008;
-const PLUCK_DECAY_S     = 0.8;
+const FX_FADE_S = 0.3;   // default FX fade duration
 
 const SCALE_INTERVALS: Record<Scale, number[]> = {
   pentatonic_major: [0, 2, 4, 7, 9],
@@ -39,11 +35,8 @@ interface SampleInstance {
 interface HarpInstance {
   config: Extract<MappingConfig, { kind: 'level_sample' }>;
   gainNode: GainNode;
-  schedulerTimer: ReturnType<typeof setTimeout> | null;
-  nextNoteTime: number;
-  noteIndex: number;
-  scaleNotes: number[];        // hz frequencies in order
-  valueRef: { current: number };
+  oscillator: OscillatorNode;
+  scaleNotes: number[];   // sorted hz frequencies for pitch snapping
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -61,13 +54,6 @@ function buildScaleNotes(scale: Scale, rootMidi = 60, octaves = 3): number[] {
     }
   }
   return notes;
-}
-
-function buildArpeggioSequence(notes: number[], direction: ArpeggioDirection): number[] {
-  if (direction === 'up')   return [...notes];
-  if (direction === 'down') return [...notes].reverse();
-  // mirror: up then down (skip repeated ends)
-  return [...notes, ...[...notes].reverse().slice(1, -1)];
 }
 
 function buildImpulseResponse(ctx: AudioContext, duration = 2, decay = 2): AudioBuffer {
@@ -307,7 +293,9 @@ class AudioEngine {
     return { type: fx.type, wetGain, dryGain, fxNode: fxNode!, _lfoOsc, _lfoConst };
   }
 
-  // ── Harp synthesiser ────────────────────────────────────────────────────────
+  // ── Pitch-to-value synthesiser ──────────────────────────────────────────────
+  // Maps the indicator value directly to a scale-snapped frequency.
+  // The oscillator runs continuously; updateHarpValue glides the pitch.
 
   startHarp(synthId: string, config: Extract<MappingConfig, { kind: 'level_sample' }>, initialValue: number): void {
     if (this.harps.has(synthId)) return;
@@ -315,39 +303,32 @@ class AudioEngine {
 
     const gainNode = ctx.createGain();
     gainNode.gain.setValueAtTime(0.001, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.7, ctx.currentTime + 0.3);
+    gainNode.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.3);
     gainNode.connect(ctx.destination);
 
-    const rawNotes = buildScaleNotes(config.scale, 60, 3);
-    const scaleNotes = buildArpeggioSequence(rawNotes, config.arpeggio_direction);
-    const valueRef = { current: initialValue };
+    const scaleNotes = buildScaleNotes(config.scale, 48, 4); // C3–C7
 
-    const inst: HarpInstance = {
-      config,
-      gainNode,
-      schedulerTimer: null,
-      nextNoteTime: ctx.currentTime,
-      noteIndex: 0,
-      scaleNotes,
-      valueRef,
-    };
+    const oscillator = ctx.createOscillator();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(this.valueToFreq(config, scaleNotes, initialValue), ctx.currentTime);
+    oscillator.connect(gainNode);
+    oscillator.start();
 
-    this.harps.set(synthId, inst);
-    this.tickHarp(synthId);
+    this.harps.set(synthId, { config, gainNode, oscillator, scaleNotes });
   }
 
   updateHarpValue(synthId: string, value: number): void {
     const inst = this.harps.get(synthId);
-    if (inst) inst.valueRef.current = value;
+    if (!inst) return;
+    const ctx = this.getCtx();
+    const freq = this.valueToFreq(inst.config, inst.scaleNotes, value);
+    // Smooth glide to new pitch over 100 ms
+    inst.oscillator.frequency.setTargetAtTime(freq, ctx.currentTime, 0.1);
   }
 
   stopHarp(synthId: string): void {
     const inst = this.harps.get(synthId);
     if (!inst) return;
-
-    // Cancel scheduler immediately
-    if (inst.schedulerTimer !== null) clearTimeout(inst.schedulerTimer);
-    inst.schedulerTimer = null;
 
     const ctx = this.getCtx();
     const now = ctx.currentTime;
@@ -355,7 +336,11 @@ class AudioEngine {
     inst.gainNode.gain.linearRampToValueAtTime(0, now + FX_FADE_S);
 
     setTimeout(() => {
-      try { inst.gainNode.disconnect(); } catch { /* ok */ }
+      try {
+        inst.oscillator.stop();
+        inst.oscillator.disconnect();
+        inst.gainNode.disconnect();
+      } catch { /* already stopped */ }
       this.harps.delete(synthId);
     }, FX_FADE_S * 1000 + 50);
   }
@@ -367,45 +352,15 @@ class AudioEngine {
     inst.gainNode.gain.setTargetAtTime(vol, ctx.currentTime, 0.01);
   }
 
-  private tickHarp(synthId: string): void {
-    const inst = this.harps.get(synthId);
-    if (!inst || inst.schedulerTimer === null && !this.harps.has(synthId)) return;
-    const ctx = this.getCtx();
-
-    const bpm = this.computeHarpBPM(inst);
-    const beatS = 60 / bpm;
-    const horizon = ctx.currentTime + HARP_LOOKAHEAD_S;
-
-    while (inst.nextNoteTime < horizon) {
-      this.schedulePluck(ctx, inst.scaleNotes[inst.noteIndex % inst.scaleNotes.length], inst.nextNoteTime, inst.gainNode);
-      inst.noteIndex = (inst.noteIndex + 1) % inst.scaleNotes.length;
-      inst.nextNoteTime += beatS;
-    }
-
-    inst.schedulerTimer = setTimeout(() => this.tickHarp(synthId), HARP_TICK_MS);
-  }
-
-  private computeHarpBPM(inst: HarpInstance): number {
-    const { from_value, to_value, tempo_mapping: { slow_bpm, fast_bpm } } = inst.config;
-    const range = to_value - from_value || 1;
-    const t = Math.max(0, Math.min(1, (inst.valueRef.current - from_value) / range));
-    return slow_bpm + t * (fast_bpm - slow_bpm);
-  }
-
-  private schedulePluck(ctx: AudioContext, freq: number, time: number, dest: AudioNode): void {
-    const osc = ctx.createOscillator();
-    osc.type = 'triangle';
-    osc.frequency.value = freq;
-
-    const env = ctx.createGain();
-    env.gain.setValueAtTime(0, time);
-    env.gain.linearRampToValueAtTime(0.9, time + PLUCK_ATTACK_S);
-    env.gain.exponentialRampToValueAtTime(0.001, time + PLUCK_DECAY_S);
-
-    osc.connect(env);
-    env.connect(dest);
-    osc.start(time);
-    osc.stop(time + PLUCK_DECAY_S);
+  private valueToFreq(
+    config: Extract<MappingConfig, { kind: 'level_sample' }>,
+    scaleNotes: number[],
+    value: number,
+  ): number {
+    const range = config.to_value - config.from_value || 1;
+    const t = Math.max(0, Math.min(1, (value - config.from_value) / range));
+    const idx = Math.round(t * (scaleNotes.length - 1));
+    return scaleNotes[idx];
   }
 }
 
