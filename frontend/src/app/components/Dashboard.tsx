@@ -8,7 +8,6 @@ import { LiquidationFeed } from './LiquidationFeed';
 import { PaperTrading } from './PaperTrading';
 import { SoundMappingModal } from './sound/SoundMappingModal';
 import { SoundFooter } from './sound/SoundFooter';
-import { useMarketData } from './MarketDataWrapper';
 import { useMappingEngine } from '../../audio/MappingEngine';
 import { getMappings } from '../../audio/MappingStore';
 import type { StoredMapping } from '../../audio/types';
@@ -16,8 +15,6 @@ import { MoreHorizontal } from 'lucide-react';
 import { useAmbiencePlayer } from '../../audio/useAmbiencePlayer';
 
 export const Dashboard: React.FC = () => {
-  const { raw, sentiment } = useMarketData();
-
   // ── Sound mapping state ──────────────────────────────────────────────────────
   const [modalIndicator, setModalIndicator] = useState<string | null>(null);
   const [mappings, setMappings] = useState<StoredMapping[]>(() => getMappings());
@@ -33,14 +30,6 @@ export const Dashboard: React.FC = () => {
 
   // ── Office ambience ───────────────────────────────────────────────────────────
   const { enabled: ambienceEnabled, toggle: toggleAmbience } = useAmbiencePlayer();
-
-  // ── Dashboard data ────────────────────────────────────────────────────────────
-  const oi          = raw.openInterest as any;
-  const priceStruct = raw.priceStructure as any;
-  const vwap        = raw.vwap as any;
-  const btcCorr     = raw.btcCorrelation as any;
-  const buyWall     = Math.max(0, Math.min(100, 50 + ((raw.bidAskImbalance as any)?.value ?? 0) * 50));
-  const sellWall    = 100 - buyWall;
 
   const hasFooter = mappings.length > 0;
 
@@ -105,54 +94,9 @@ export const Dashboard: React.FC = () => {
           </div>
         </section>
 
-        {/* Section 5 */}
-        <section className="h-[500px]">
+        {/* Paper Trading */}
+        <section className="h-[600px]">
           <PaperTrading />
-        </section>
-
-        {/* Intelligence panel */}
-        <section className="bg-gradient-to-br from-blue-600/10 to-purple-600/10 border border-white/10 rounded-3xl p-8 relative overflow-hidden">
-          <div className="absolute top-8 right-8">
-            <button
-              onClick={() => handleOpenMapping('volatility')}
-              className="p-2 hover:bg-white/5 rounded-lg transition-colors text-white/40 hover:text-blue-400"
-              title="Add sound mapping for Volatility"
-            >
-              <MoreHorizontal className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="max-w-3xl">
-            <h3 className="text-white font-bold text-2xl mb-2">Terminal Intelligence</h3>
-            <p className="text-white/60 text-sm leading-relaxed mb-8">
-              {priceStruct?.trend ? `Price structure: ${priceStruct.trend}. ` : ''}
-              {vwap?.signal     ? `VWAP signal: ${vwap.signal}. ` : ''}
-              {btcCorr?.signal  ? `BTC correlation: ${btcCorr.signal} (${btcCorr.correlation?.toFixed(3)}). ` : ''}
-              {oi?.signal       ? `Open interest: ${oi.signal} (${oi.openInterest?.toFixed(0)} ETH).` : 'Analysing live market structure…'}
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest">
-                  <span className="text-white/40">Buy Wall Strength</span>
-                  <span className="text-emerald-400 font-mono">{buyWall.toFixed(1)}%</span>
-                </div>
-                <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${buyWall}%` }} />
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest">
-                  <span className="text-white/40">Sell Wall Pressure</span>
-                  <span className="text-rose-400 font-mono">{sellWall.toFixed(1)}%</span>
-                </div>
-                <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-rose-500 transition-all duration-500" style={{ width: `${sellWall}%` }} />
-                </div>
-              </div>
-            </div>
-            <button className="px-8 py-4 bg-white text-black font-bold rounded-2xl hover:bg-white/90 transition-colors text-sm">
-              Activate AI Execution Module
-            </button>
-          </div>
         </section>
 
       </main>

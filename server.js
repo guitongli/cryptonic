@@ -344,21 +344,87 @@ class IndicatorEngine extends EventEmitter {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// PaperTrader  (in-memory, survives connection resets but not server restarts)
+// ══════════════════════════════════════════════════════════════════════════════
+
+class PaperTrader {
+  constructor(startingBalance = 100_000) {
+    this._startingBalance = startingBalance;
+    this.balance  = startingBalance;
+    this._positions = new Map(); // id → position
+    this._nextId  = 1;
+  }
+
+  /** Open a new position. Throws if balance is insufficient. */
+  open(type, size, entryPrice, leverage) {
+    const notional = size * entryPrice;
+    if (notional > this.balance) throw new Error('Insufficient balance');
+    const id = this._nextId++;
+    const pos = { id, type, symbol: 'ETH/USDT', size, entry: entryPrice, leverage, openedAt: Date.now() };
+    this._positions.set(id, pos);
+    this.balance -= notional;
+    return pos;
+  }
+
+  /** Close a position by id at exitPrice. Returns { pnl, closedPosition }. */
+  close(id, exitPrice) {
+    const pos = this._positions.get(id);
+    if (!pos) throw new Error('Position not found');
+    const priceDiff = pos.type === 'long' ? exitPrice - pos.entry : pos.entry - exitPrice;
+    const pnl       = priceDiff * pos.size * pos.leverage;
+    this.balance   += pos.size * exitPrice + pnl;
+    this._positions.delete(id);
+    return { pnl, closedPosition: pos };
+  }
+
+  /** Snapshot with live PnL computed at livePrice. */
+  getState(livePrice) {
+    const positions = [];
+    for (const pos of this._positions.values()) {
+      const priceDiff = livePrice > 0
+        ? (pos.type === 'long' ? livePrice - pos.entry : pos.entry - livePrice)
+        : 0;
+      positions.push({ ...pos, pnl: priceDiff * pos.size * pos.leverage });
+    }
+    const totalPnl = positions.reduce((s, p) => s + p.pnl, 0);
+    return { balance: this.balance, positions, totalPnl };
+  }
+
+  /** Reset account to starting balance. */
+  reset() {
+    this.balance = this._startingBalance;
+    this._positions.clear();
+    this._nextId = 1;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // HTTP Server
 // ══════════════════════════════════════════════════════════════════════════════
 
-const PORT   = parseInt(process.env.PORT || '3000', 10);
-const stream = new StreamManager();
-const engine = new IndicatorEngine(stream);
+const PORT        = parseInt(process.env.PORT || '3000', 10);
+const stream      = new StreamManager();
+const engine      = new IndicatorEngine(stream);
+const paperTrader = new PaperTrader();
+
+/** Mid-price from the latest bookTicker, or 0 if not yet received. */
+function getLivePrice() {
+  const bt = engine.getState().bookTicker;
+  return bt ? (bt.bestBid + bt.bestAsk) / 2 : 0;
+}
 
 const app = express();
 
-// CORS — allows the frontend to be served from a different dev port
+// CORS — allows the frontend dev server to call the API
 app.use((_req, res, next) => {
   res.set('Access-Control-Allow-Origin',  '*');
   res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  if (_req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
+
+app.use(express.json());
 
 // Static frontend
 app.use(express.static(path.join(__dirname, 'frontend')));
@@ -398,11 +464,73 @@ app.get('/stream', (req, res) => {
   });
 });
 
+// ── Paper trading REST API ─────────────────────────────────────────────────────
+
+/**
+ * GET /paper/state
+ * Returns current balance, open positions (with live PnL), and totalPnl.
+ */
+app.get('/paper/state', (_req, res) => {
+  res.json(paperTrader.getState(getLivePrice()));
+});
+
+/**
+ * POST /paper/order
+ * Body: { type: 'long'|'short', size: number, leverage: number }
+ * Opens a position at the current mid-price.
+ */
+app.post('/paper/order', (req, res) => {
+  const { type, size, leverage } = req.body;
+  const livePrice = getLivePrice();
+  if (!livePrice) return res.status(503).json({ error: 'No live price yet' });
+  if (!['long', 'short'].includes(type)) return res.status(400).json({ error: 'Invalid type' });
+  const parsedSize     = parseFloat(size);
+  const parsedLeverage = Math.max(1, parseInt(leverage) || 1);
+  if (!parsedSize || parsedSize <= 0) return res.status(400).json({ error: 'Invalid size' });
+  try {
+    const position = paperTrader.open(type, parsedSize, livePrice, parsedLeverage);
+    console.log(`[Paper] OPEN  ${type.toUpperCase()} ${parsedSize} ETH @ ${livePrice.toFixed(2)} ×${parsedLeverage}`);
+    res.json({ position, state: paperTrader.getState(livePrice) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /paper/order/:id
+ * Closes the position at the current mid-price.
+ */
+app.delete('/paper/order/:id', (req, res) => {
+  const livePrice = getLivePrice();
+  if (!livePrice) return res.status(503).json({ error: 'No live price yet' });
+  try {
+    const { pnl, closedPosition } = paperTrader.close(parseInt(req.params.id), livePrice);
+    console.log(`[Paper] CLOSE ${closedPosition.type.toUpperCase()} ${closedPosition.size} ETH  PnL: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`);
+    res.json({ pnl, state: paperTrader.getState(livePrice) });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /paper/reset
+ * Wipes all positions and restores starting balance.
+ */
+app.post('/paper/reset', (_req, res) => {
+  paperTrader.reset();
+  console.log('[Paper] Account reset');
+  res.json({ state: paperTrader.getState(getLivePrice()) });
+});
+
 app.listen(PORT, () => {
   console.log(`[Server] Listening on http://localhost:${PORT}`);
-  console.log(`[Server] GET /state   → indicator snapshot (JSON)`);
-  console.log(`[Server] GET /stream  → live SSE feed`);
-  console.log(`[Server] GET /        → frontend`);
+  console.log(`[Server] GET  /state         → indicator snapshot (JSON)`);
+  console.log(`[Server] GET  /stream        → live SSE feed`);
+  console.log(`[Server] GET  /paper/state   → paper trading state`);
+  console.log(`[Server] POST /paper/order   → open position`);
+  console.log(`[Server] DEL  /paper/order/:id → close position`);
+  console.log(`[Server] POST /paper/reset   → reset account`);
+  console.log(`[Server] GET  /              → frontend`);
 });
 
 // ── start engine ───────────────────────────────────────────────────────────────

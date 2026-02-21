@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { Wallet, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, MoreHorizontal, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Wallet, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, MoreHorizontal, X, RotateCcw } from 'lucide-react';
 import { useMarketData } from './MarketDataWrapper';
+
+const API = 'http://localhost:3000';
 
 interface Position {
   id: number;
@@ -8,56 +10,86 @@ interface Position {
   symbol: string;
   entry: number;
   size: number;
-  pnl: number;
+  leverage: number;
+  openedAt: number;
 }
 
 export const PaperTrading: React.FC = () => {
   const { currentPrice } = useMarketData();
   const [balance, setBalance] = useState(100_000);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [amount, setAmount] = useState('');
   const [leverage, setLeverage] = useState(1);
-  const [positions, setPositions] = useState<Position[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const livePrice = currentPrice > 0 ? currentPrice : 0;
 
-  // Compute live PNL for each position
+  // Fetch persisted state on mount so positions survive page refresh
+  useEffect(() => {
+    fetch(`${API}/paper/state`)
+      .then(r => r.json())
+      .then(data => {
+        setBalance(data.balance);
+        setPositions(data.positions);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Live PnL computed client-side — updates every price tick without polling
   const positionsWithPnl = positions.map((pos) => {
-    if (livePrice === 0) return { ...pos, pnl: 0 };
-    const priceDiff = pos.type === 'long'
-      ? livePrice - pos.entry
-      : pos.entry - livePrice;
-    return { ...pos, pnl: priceDiff * pos.size * leverage };
+    const priceDiff = livePrice > 0
+      ? (pos.type === 'long' ? livePrice - pos.entry : pos.entry - livePrice)
+      : 0;
+    return { ...pos, pnl: priceDiff * pos.size * pos.leverage };
   });
 
   const totalPnl = positionsWithPnl.reduce((sum, p) => sum + p.pnl, 0);
 
-  const handleTrade = (type: 'long' | 'short') => {
-    const val = parseFloat(amount);
-    if (isNaN(val) || val <= 0 || livePrice === 0) return;
-
-    const notional = val * livePrice;
-    if (notional > balance) return; // insufficient funds
-
-    const newPos: Position = {
-      id: Date.now(),
-      type,
-      symbol: 'ETH/USDT',
-      entry: livePrice,
-      size: val,
-      pnl: 0,
-    };
-
-    setPositions((prev) => [newPos, ...prev]);
-    setBalance((prev) => prev - notional);
-    setAmount('');
+  const applyState = (data: { balance: number; positions: Position[] }) => {
+    setBalance(data.balance);
+    setPositions(data.positions);
   };
 
-  const closePosition = (id: number) => {
-    const pos = positionsWithPnl.find((p) => p.id === id);
-    if (!pos) return;
-    const closeValue = pos.size * livePrice + pos.pnl;
-    setBalance((prev) => prev + closeValue);
-    setPositions((prev) => prev.filter((p) => p.id !== id));
+  const handleTrade = async (type: 'long' | 'short') => {
+    const val = parseFloat(amount);
+    if (isNaN(val) || val <= 0 || livePrice === 0) return;
+    if (val * livePrice > balance) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/paper/order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, size: val, leverage }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        applyState(data.state);
+        setAmount('');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closePosition = async (id: number) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/paper/order/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        const data = await res.json();
+        applyState(data.state);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReset = async () => {
+    const res = await fetch(`${API}/paper/reset`, { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      applyState(data.state);
+    }
   };
 
   return (
@@ -74,9 +106,18 @@ export const PaperTrading: React.FC = () => {
             </p>
           </div>
         </div>
-        <button className="p-2 hover:bg-white/5 rounded-lg transition-colors text-white/40 hover:text-white">
-          <MoreHorizontal className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleReset}
+            className="p-2 hover:bg-white/5 rounded-lg transition-colors text-white/20 hover:text-rose-400"
+            title="Reset account to $100,000"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+          <button className="p-2 hover:bg-white/5 rounded-lg transition-colors text-white/40 hover:text-white">
+            <MoreHorizontal className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -103,7 +144,7 @@ export const PaperTrading: React.FC = () => {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder={livePrice > 0 ? `Size (ETH) — price $${livePrice.toFixed(2)}` : 'Connecting...'}
-            disabled={livePrice === 0}
+            disabled={livePrice === 0 || loading}
             className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:border-blue-500/50 transition-colors text-white placeholder-white/20 disabled:opacity-40"
           />
           <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-white/20 uppercase tracking-widest">
@@ -132,14 +173,14 @@ export const PaperTrading: React.FC = () => {
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => handleTrade('long')}
-            disabled={livePrice === 0}
+            disabled={livePrice === 0 || loading}
             className="flex items-center justify-center gap-2 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-black font-bold rounded-xl transition-colors text-sm"
           >
             <TrendingUp className="w-4 h-4" /> BUY / LONG
           </button>
           <button
             onClick={() => handleTrade('short')}
-            disabled={livePrice === 0}
+            disabled={livePrice === 0 || loading}
             className="flex items-center justify-center gap-2 py-3 bg-rose-500 hover:bg-rose-600 disabled:opacity-40 text-white font-bold rounded-xl transition-colors text-sm"
           >
             <TrendingDown className="w-4 h-4" /> SELL / SHORT
@@ -168,7 +209,7 @@ export const PaperTrading: React.FC = () => {
                   </div>
                   <div>
                     <div className="text-xs font-bold text-white uppercase tracking-tight">
-                      {pos.type.toUpperCase()} ETH
+                      {pos.type.toUpperCase()} ETH{pos.leverage > 1 && <span className="text-blue-400 ml-1">×{pos.leverage}</span>}
                     </div>
                     <div className="text-[10px] text-white/40 font-mono">
                       @${pos.entry.toLocaleString(undefined, { maximumFractionDigits: 2 })}
@@ -184,7 +225,8 @@ export const PaperTrading: React.FC = () => {
                   </div>
                   <button
                     onClick={() => closePosition(pos.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-rose-500/20 rounded-lg transition-all text-white/40 hover:text-rose-400"
+                    disabled={loading}
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-rose-500/20 rounded-lg transition-all text-white/40 hover:text-rose-400 disabled:cursor-not-allowed"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
