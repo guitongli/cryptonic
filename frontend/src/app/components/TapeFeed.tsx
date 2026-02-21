@@ -10,7 +10,7 @@ export const TapeFeed: React.FC = () => {
   const maxSize = tape.length > 0 ? Math.max(...tape.map(t => t.size)) : 1;
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-2xl p-6 h-full flex flex-col min-h-0">
+    <div className="bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-white font-bold text-lg">Tape Feed</h3>
@@ -35,11 +35,11 @@ export const TapeFeed: React.FC = () => {
       </div>
 
       {tape.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center text-white/20 text-xs font-bold uppercase tracking-widest">
+        <div className="py-8 flex items-center justify-center text-white/20 text-xs font-bold uppercase tracking-widest">
           Connecting to market feed...
         </div>
       ) : (
-        <div className="flex-1 overflow-hidden">
+        <div className="overflow-hidden">
           <div className="space-y-0.5">
             <AnimatePresence initial={false}>
               {tape.map((event, index) => {
