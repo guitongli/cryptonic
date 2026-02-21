@@ -89,41 +89,43 @@ export const Dashboard: React.FC = () => {
               <IndicatorRow onOpenMapping={handleOpenMapping} />
             </div>
 
-            {/* Section 4: Cumulative Delta */}
-            <div className="flex-1 min-h-[260px] relative group">
-              <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => handleOpenMapping('cumulativeDelta')}
-                  className="p-2 hover:bg-white/5 rounded-lg transition-colors text-white/40 hover:text-blue-400"
-                  title="Add sound mapping for Cumulative Delta"
-                >
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
+            {/* Section 4: Cumulative Delta + Liquidation Feed */}
+            <div className="grid grid-cols-2 gap-6 flex-1 min-h-[260px]">
+              <div className="relative group h-full">
+                <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleOpenMapping('cumulativeDelta')}
+                    className="p-2 hover:bg-white/5 rounded-lg transition-colors text-white/40 hover:text-blue-400"
+                    title="Add sound mapping for Cumulative Delta"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
+                </div>
+                <CumulativeDelta />
               </div>
-              <CumulativeDelta />
+              <div className="relative group h-full min-h-0">
+                <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleOpenMapping('sentiment')}
+                    className="p-2 hover:bg-white/5 rounded-lg transition-colors text-white/40 hover:text-blue-400"
+                    title="Add sound mapping for Liquidations"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
+                </div>
+                <LiquidationFeed />
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Section 5 + 6 + 7 */}
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 h-auto lg:h-[620px]">
-          <div className="lg:col-span-1 h-[620px] lg:h-full min-h-0">
+        {/* Section 5 + 6 */}
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-6 h-auto lg:h-[620px]">
+          <div className="h-[620px] lg:h-full min-h-0">
             <TapeFeed />
           </div>
-          <div className="md:col-span-1 lg:col-span-1 h-[620px] lg:h-full min-h-0">
+          <div className="h-[620px] lg:h-full min-h-0">
             <PaperTrading />
-          </div>
-          <div className="md:col-span-2 lg:col-span-1 h-[620px] lg:h-full min-h-0 relative group">
-            <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={() => handleOpenMapping('sentiment')}
-                className="p-2 hover:bg-white/5 rounded-lg transition-colors text-white/40 hover:text-blue-400"
-                title="Add sound mapping for Tape Pressure / Sentiment"
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-            </div>
-            <LiquidationFeed />
           </div>
         </section>
 

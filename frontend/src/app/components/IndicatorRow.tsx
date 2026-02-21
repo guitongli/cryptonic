@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, BarChart3, TrendingUp, Zap, GitMerge, DollarSign, MoreHorizontal, Gauge, Flame, LineChart, Percent } from 'lucide-react';
+import { Activity, BarChart3, Layers, Zap, GitMerge, DollarSign, MoreHorizontal, Gauge, Flame, LineChart, Percent } from 'lucide-react';
 import { useMarketData } from './MarketDataWrapper';
 
 interface IndicatorProps {
@@ -64,7 +64,6 @@ export const IndicatorRow: React.FC<IndicatorRowProps> = ({ onOpenMapping }) => 
   const tradeRate    = raw.tradeRate as any;
   const btcCorr      = raw.btcCorrelation as any;
   const fundingRate  = raw.fundingRate as any;
-  const bookTicker   = raw.bookTicker as any;
   const vwapRaw      = raw.vwap as any;
 
   const imbalVal   = bidAsk?.value ?? 0;
@@ -72,10 +71,11 @@ export const IndicatorRow: React.FC<IndicatorRowProps> = ({ onOpenMapping }) => 
   const rateVal    = tradeRate?.rate ?? 0;
   const corrVal    = btcCorr?.correlation ?? 0;
   const fundingVal = fundingRate?.rate ?? 0;
-  const spread     = bookTicker?.spread ?? null;
   const vwapVal    = vwapRaw?.vwap ?? null;
+  const buyWall    = Math.max(0, Math.min(100, 50 + imbalVal * 50));
 
   const fundingSignal    = fundingVal > 0 ? 'BULLISH' : fundingVal < 0 ? 'BEARISH' : 'NEUTRAL';
+  const buyWallSignal    = buyWall > 60 ? 'BULLISH' : buyWall < 40 ? 'BEARISH' : null;
   const volatilitySignal = volatility > 0.6 ? 'HIGH' : volatility < 0.2 ? 'LOW' : null;
   const sentimentSignal  = sentiment > 0.2 ? 'BULLISH' : sentiment < -0.2 ? 'BEARISH' : 'NEUTRAL';
   const priceSignal      = priceChange > 0 ? 'BULLISH' : priceChange < 0 ? 'BEARISH' : null;
@@ -127,11 +127,12 @@ export const IndicatorRow: React.FC<IndicatorRowProps> = ({ onOpenMapping }) => 
         onOpenMapping={onOpenMapping}
       />
       <Indicator
-        label="Spread"
-        value={spread != null ? `$${spread.toFixed(4)}` : '—'}
-        icon={<TrendingUp className="w-4 h-4" />}
+        label="Buy Wall"
+        value={`${buyWall.toFixed(1)}%`}
+        signal={buyWallSignal}
+        icon={<Layers className="w-4 h-4" />}
         connecting={connecting}
-        indicatorKey="spread"
+        indicatorKey="buyWall"
         onOpenMapping={onOpenMapping}
       />
       <Indicator

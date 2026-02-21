@@ -87,17 +87,17 @@ export const MarketDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             // Sentiment: tapePressure.value (-1 to +1)
             const sentiment = data.tapePressure?.value ?? prev.sentiment;
 
-            // Delta history: append current delta value
+            // Delta history: one entry per second (update current second, append on new second)
             const deltaVal = (data.cumulativeDelta?.delta ?? 0) * 10; // scale for display
-            const newEntry = {
-              time: new Date().toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-              }),
-              delta: deltaVal,
-            };
-            const deltaData = [...prev.deltaData.slice(-29), newEntry];
+            const timeKey = new Date().toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            });
+            const last = prev.deltaData[prev.deltaData.length - 1];
+            const deltaData = last && last.time === timeKey
+              ? [...prev.deltaData.slice(0, -1), { time: timeKey, delta: deltaVal }]
+              : [...prev.deltaData.slice(-29), { time: timeKey, delta: deltaVal }];
 
             // Liquidations: accumulate new events by timestamp
             let liquidations = prev.liquidations;
