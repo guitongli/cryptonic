@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, BarChart3, TrendingUp, Zap, GitMerge, DollarSign, MoreHorizontal } from 'lucide-react';
+import { Activity, BarChart3, TrendingUp, Zap, GitMerge, DollarSign, MoreHorizontal, Gauge, Flame, LineChart, Percent } from 'lucide-react';
 import { useMarketData } from './MarketDataWrapper';
 
 interface IndicatorProps {
@@ -56,24 +56,29 @@ interface IndicatorRowProps {
 }
 
 export const IndicatorRow: React.FC<IndicatorRowProps> = ({ onOpenMapping }) => {
-  const { raw } = useMarketData();
+  const { raw, volatility, sentiment, priceChange } = useMarketData();
   const connecting = Object.keys(raw).length === 0;
 
-  const bidAsk      = raw.bidAskImbalance as any;
+  const bidAsk       = raw.bidAskImbalance as any;
   const volIntensity = raw.volumeIntensity as any;
-  const tradeRate   = raw.tradeRate as any;
-  const btcCorr     = raw.btcCorrelation as any;
-  const fundingRate = raw.fundingRate as any;
-  const bookTicker  = raw.bookTicker as any;
+  const tradeRate    = raw.tradeRate as any;
+  const btcCorr      = raw.btcCorrelation as any;
+  const fundingRate  = raw.fundingRate as any;
+  const bookTicker   = raw.bookTicker as any;
+  const vwapRaw      = raw.vwap as any;
 
-  const imbalVal = bidAsk?.value ?? 0;
-  const viVal    = volIntensity?.value ?? 1;
-  const rateVal  = tradeRate?.rate ?? 0;
-  const corrVal  = btcCorr?.correlation ?? 0;
+  const imbalVal   = bidAsk?.value ?? 0;
+  const viVal      = volIntensity?.value ?? 1;
+  const rateVal    = tradeRate?.rate ?? 0;
+  const corrVal    = btcCorr?.correlation ?? 0;
   const fundingVal = fundingRate?.rate ?? 0;
-  const spread   = bookTicker?.spread ?? null;
+  const spread     = bookTicker?.spread ?? null;
+  const vwapVal    = vwapRaw?.vwap ?? null;
 
-  const fundingSignal = fundingVal > 0 ? 'BULLISH' : fundingVal < 0 ? 'BEARISH' : 'NEUTRAL';
+  const fundingSignal    = fundingVal > 0 ? 'BULLISH' : fundingVal < 0 ? 'BEARISH' : 'NEUTRAL';
+  const volatilitySignal = volatility > 0.6 ? 'HIGH' : volatility < 0.2 ? 'LOW' : null;
+  const sentimentSignal  = sentiment > 0.2 ? 'BULLISH' : sentiment < -0.2 ? 'BEARISH' : 'NEUTRAL';
+  const priceSignal      = priceChange > 0 ? 'BULLISH' : priceChange < 0 ? 'BEARISH' : null;
 
   return (
     <div className="flex flex-wrap gap-3 px-6 pb-6">
@@ -127,6 +132,41 @@ export const IndicatorRow: React.FC<IndicatorRowProps> = ({ onOpenMapping }) => 
         icon={<TrendingUp className="w-4 h-4" />}
         connecting={connecting}
         indicatorKey="spread"
+        onOpenMapping={onOpenMapping}
+      />
+      <Indicator
+        label="Volatility"
+        value={`${(volatility * 100).toFixed(0)}%`}
+        signal={volatilitySignal}
+        icon={<Gauge className="w-4 h-4" />}
+        connecting={connecting}
+        indicatorKey="volatility"
+        onOpenMapping={onOpenMapping}
+      />
+      <Indicator
+        label="Tape Pressure"
+        value={sentimentSignal}
+        signal={sentimentSignal}
+        icon={<Flame className="w-4 h-4" />}
+        connecting={connecting}
+        indicatorKey="sentiment"
+        onOpenMapping={onOpenMapping}
+      />
+      <Indicator
+        label="VWAP"
+        value={vwapVal != null ? `$${vwapVal.toFixed(2)}` : '—'}
+        icon={<LineChart className="w-4 h-4" />}
+        connecting={connecting}
+        indicatorKey="vwap"
+        onOpenMapping={onOpenMapping}
+      />
+      <Indicator
+        label="Price Change"
+        value={`${priceChange >= 0 ? '+' : ''}${priceChange.toFixed(3)}%`}
+        signal={priceSignal}
+        icon={<Percent className="w-4 h-4" />}
+        connecting={connecting}
+        indicatorKey="currentPrice"
         onOpenMapping={onOpenMapping}
       />
     </div>

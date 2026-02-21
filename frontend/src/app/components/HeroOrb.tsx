@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { useMarketData } from './MarketDataWrapper';
 
 export const HeroOrb: React.FC = () => {
-  const { currentPrice, priceChange, volatility, sentiment, raw } = useMarketData();
+  const { currentPrice, volatility, sentiment } = useMarketData();
   const connecting = currentPrice === 0;
 
   // Glow color: green (bullish) / red (bearish) / blue (neutral)
@@ -13,9 +13,6 @@ export const HeroOrb: React.FC = () => {
     if (sentiment < -0.2) return 'rgba(251, 113, 133, 0.4)'; // rose
     return 'rgba(59, 130, 246, 0.4)';                         // blue
   };
-
-  const sentimentLabel = sentiment > 0.2 ? 'BULLISH' : sentiment < -0.2 ? 'BEARISH' : 'NEUTRAL';
-  const vwap = raw?.vwap?.vwap;
 
   return (
     <div className="relative aspect-square w-full max-w-[360px] mx-auto flex items-center justify-center">
@@ -51,19 +48,11 @@ export const HeroOrb: React.FC = () => {
           {connecting ? 'CONNECTING...' : 'ETH / USDT PERP'}
         </div>
 
-        <div className="text-3xl font-mono font-bold text-white mb-2">
+        <div className="text-3xl font-mono font-bold text-white">
           {connecting
             ? '—'
             : `$${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         </div>
-
-        {!connecting && (
-          <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
-            priceChange >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
-          }`}>
-            {priceChange >= 0 ? '↑' : '↓'} {Math.abs(priceChange).toFixed(3)}%
-          </div>
-        )}
 
         {/* Volatility pulse */}
         <motion.div
@@ -73,34 +62,6 @@ export const HeroOrb: React.FC = () => {
         />
       </div>
 
-      {/* Floating chips */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2">
-        <div className="px-3 py-1 rounded-md bg-black/60 border border-white/10 backdrop-blur-sm text-[10px] font-bold text-white/60 whitespace-nowrap">
-          VOLATILITY: {connecting ? '—' : `${(volatility * 100).toFixed(0)}%`}
-        </div>
-      </div>
-
-      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-2">
-        <div className={`px-3 py-1 rounded-md bg-black/60 border backdrop-blur-sm text-[10px] font-bold whitespace-nowrap ${
-          connecting
-            ? 'border-white/10 text-white/60'
-            : sentiment > 0.2
-              ? 'border-emerald-500/30 text-emerald-400'
-              : sentiment < -0.2
-                ? 'border-rose-500/30 text-rose-400'
-                : 'border-white/10 text-white/60'
-        }`}>
-          {connecting ? 'LOADING...' : sentimentLabel}
-        </div>
-      </div>
-
-      {vwap && (
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2">
-          <div className="px-2 py-1 rounded-md bg-black/60 border border-white/10 backdrop-blur-sm text-[9px] font-bold text-white/50">
-            VWAP<br />${vwap.toFixed(2)}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
