@@ -1,24 +1,16 @@
-import React, { useRef, useCallback } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MoreHorizontal } from 'lucide-react';
 import { useMarketData } from './MarketDataWrapper';
 
 export const TapeFeed: React.FC = () => {
   const { tape } = useMarketData();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const autoScrollRef = useRef(true);
-  const resumeTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  const onMouseEnter = useCallback(() => {
-    clearTimeout(resumeTimer.current);
-    autoScrollRef.current = false;
-  }, []);
+  const displayed = [...tape]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 30);
 
-  const onMouseLeave = useCallback(() => {
-    resumeTimer.current = setTimeout(() => { autoScrollRef.current = true; }, 3000);
-  }, []);
-
-  const maxSize = tape.length > 0 ? Math.max(...tape.map(t => t.size)) : 1;
+  const maxSize = displayed.length > 0 ? Math.max(...displayed.map(t => t.size)) : 1;
 
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl p-6 h-full flex flex-col min-h-0">
@@ -50,15 +42,10 @@ export const TapeFeed: React.FC = () => {
           Connecting to market feed...
         </div>
       ) : (
-        <div
-          ref={containerRef}
-          onMouseEnter={onMouseEnter}
-          onMouseLeave={onMouseLeave}
-          className="flex-1 overflow-y-auto pr-2 min-h-0 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.1)_transparent]"
-        >
+        <div className="flex-1 overflow-y-auto pr-2 min-h-0 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.1)_transparent]">
           <div className="space-y-0.5">
             <AnimatePresence initial={false}>
-              {tape.map((event) => {
+              {displayed.map((event) => {
                 const barPct = maxSize > 0 ? Math.min((event.size / maxSize) * 100, 100) : 0;
                 const isBuy = event.side === 'buy';
                 return (
