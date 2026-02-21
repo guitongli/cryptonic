@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { Header } from './Header';
-import { HeroOrb } from './HeroOrb';
 import { IndicatorRow } from './IndicatorRow';
 import { CumulativeDelta } from './CumulativeDelta';
 import { TapeFeed } from './TapeFeed';
@@ -56,24 +55,11 @@ export const Dashboard: React.FC = () => {
 
       <main className="max-w-[1600px] mx-auto p-6 space-y-6">
 
-        {/* Section 2 + 3: Hero Orb + Indicator Row */}
+        {/* Section 2 + 3: Tape Feed + Indicator Row */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Section 2: Hero Orb */}
-          <div className="lg:col-span-4 flex flex-col items-center justify-center bg-white/5 border border-white/10 rounded-3xl p-8 relative overflow-hidden min-h-[420px]">
-            <div className="absolute top-6 left-6 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Market Engine Active</span>
-            </div>
-            <div className="absolute top-6 right-6 flex items-center gap-1">
-              <button
-                onClick={() => handleOpenMapping('currentPrice')}
-                className="p-2 hover:bg-white/5 rounded-lg transition-colors text-white/40 hover:text-blue-400"
-                title="Add sound mapping for Price"
-              >
-                <MoreHorizontal className="w-5 h-5" />
-              </button>
-            </div>
-            <HeroOrb />
+          {/* Section 2: Tape Feed */}
+          <div className="lg:col-span-4 min-h-[420px]">
+            <TapeFeed />
           </div>
 
           {/* Section 3: Indicator Row + Section 4: Cumulative Delta */}
@@ -119,14 +105,9 @@ export const Dashboard: React.FC = () => {
           </div>
         </section>
 
-        {/* Section 5 + 6 */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6 h-auto lg:h-[620px]">
-          <div className="h-[620px] lg:h-full min-h-0">
-            <TapeFeed />
-          </div>
-          <div className="h-[620px] lg:h-full min-h-0">
-            <PaperTrading />
-          </div>
+        {/* Section 5 */}
+        <section className="h-[500px]">
+          <PaperTrading />
         </section>
 
         {/* Intelligence panel */}

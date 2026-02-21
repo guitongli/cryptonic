@@ -45,9 +45,10 @@ export const TapeFeed: React.FC = () => {
         <div className="flex-1 overflow-y-auto pr-2 min-h-0 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.1)_transparent]">
           <div className="space-y-0.5">
             <AnimatePresence initial={false}>
-              {displayed.map((event) => {
+              {displayed.map((event, index) => {
                 const barPct = maxSize > 0 ? Math.min((event.size / maxSize) * 100, 100) : 0;
                 const isBuy = event.side === 'buy';
+                const isLatest = index === 0;
                 return (
                   <motion.div
                     key={event.id}
@@ -55,12 +56,22 @@ export const TapeFeed: React.FC = () => {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className={`flex items-center text-xs font-mono py-0.5 pl-3 border-l-2 ${
+                    className={`relative overflow-hidden flex items-center text-xs font-mono py-0.5 pl-3 border-l-2 ${
                       isBuy
                         ? 'border-emerald-500/60 bg-emerald-500/5'
                         : 'border-rose-500/60 bg-rose-500/5'
                     }`}
                   >
+                    {isLatest && (
+                      <motion.div
+                        key={`flash-${event.id}`}
+                        className="absolute inset-0 pointer-events-none"
+                        initial={{ opacity: 0.7 }}
+                        animate={{ opacity: 0 }}
+                        transition={{ duration: 0.9, ease: 'easeOut' }}
+                        style={{ backgroundColor: isBuy ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)' }}
+                      />
+                    )}
                     <div className="w-20 text-white/30 text-[10px]">
                       {new Date(event.timestamp).toLocaleTimeString([], {
                         hour12: false,
