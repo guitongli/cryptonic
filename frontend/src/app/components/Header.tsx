@@ -1,10 +1,14 @@
 import React from 'react';
-import { Search, Bell, Menu, User, ChevronDown, Zap } from 'lucide-react';
+import { Search, Bell, Menu, User, ChevronDown, Zap, Volume2, VolumeX } from 'lucide-react';
 import { useMarketData } from './MarketDataWrapper';
 
-interface HeaderProps { onOpenMapping?: (key: string) => void; }
+interface HeaderProps {
+  onOpenMapping?: (key: string) => void;
+  ambienceEnabled?: boolean;
+  onAmbienceToggle?: () => void;
+}
 
-export const Header: React.FC<HeaderProps> = ({ onOpenMapping }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenMapping, ambienceEnabled, onAmbienceToggle }) => {
   const { currentPrice, priceChange } = useMarketData();
   const connecting = currentPrice === 0;
 
@@ -61,6 +65,16 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMapping }) => {
         <div className="h-8 w-px bg-white/10 mx-2 hidden sm:block" />
 
         <div className="flex items-center gap-4">
+          <button
+            onClick={onAmbienceToggle}
+            title={ambienceEnabled ? 'Turn off office ambience' : 'Turn on office ambience'}
+            className={`p-2 rounded-full transition-colors ${ambienceEnabled ? 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-400' : 'hover:bg-white/5 text-white/40 hover:text-white/60'}`}
+          >
+            {ambienceEnabled
+              ? <Volume2 className="w-5 h-5" />
+              : <VolumeX className="w-5 h-5" />
+            }
+          </button>
           <button className="p-2 hover:bg-white/5 rounded-full transition-colors relative">
             <Bell className="w-5 h-5 text-white/60" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border-2 border-black" />

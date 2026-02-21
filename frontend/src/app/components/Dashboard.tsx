@@ -14,6 +14,7 @@ import { useMappingEngine } from '../../audio/MappingEngine';
 import { getMappings } from '../../audio/MappingStore';
 import type { StoredMapping } from '../../audio/types';
 import { MoreHorizontal } from 'lucide-react';
+import { useAmbiencePlayer } from '../../audio/useAmbiencePlayer';
 
 export const Dashboard: React.FC = () => {
   const { raw, sentiment } = useMarketData();
@@ -31,6 +32,9 @@ export const Dashboard: React.FC = () => {
   // Run the mapping engine (evaluates conditions on every market tick)
   useMappingEngine();
 
+  // ── Office ambience ───────────────────────────────────────────────────────────
+  const { enabled: ambienceEnabled, toggle: toggleAmbience } = useAmbiencePlayer();
+
   // ── Dashboard data ────────────────────────────────────────────────────────────
   const oi          = raw.openInterest as any;
   const priceStruct = raw.priceStructure as any;
@@ -44,7 +48,11 @@ export const Dashboard: React.FC = () => {
   return (
     <div className={`min-h-screen bg-[#050505] text-white selection:bg-blue-500/30 ${hasFooter ? 'pb-24' : ''}`}>
       {/* Section 1: Header */}
-      <Header onOpenMapping={handleOpenMapping} />
+      <Header
+        onOpenMapping={handleOpenMapping}
+        ambienceEnabled={ambienceEnabled}
+        onAmbienceToggle={toggleAmbience}
+      />
 
       <main className="max-w-[1600px] mx-auto p-6 space-y-6">
 
