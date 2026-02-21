@@ -149,6 +149,45 @@ class AudioEngine {
     inst.sourceNode = source;
   }
 
+  startSampleLoop(soundId: string, volume = 0.8): void {
+    const inst = this.samples.get(soundId);
+    if (!inst) return;
+    const ctx = this.getCtx();
+
+    // Stop any existing source before starting fresh
+    if (inst.sourceNode) {
+      try { inst.sourceNode.stop(); inst.sourceNode.disconnect(); } catch { /* ok */ }
+    }
+
+    inst.gainNode.gain.setTargetAtTime(volume, ctx.currentTime, 0.01);
+
+    const source = ctx.createBufferSource();
+    source.buffer = inst.buffer;
+    source.loop = true;
+    source.connect(this.fxChainInput(inst));
+    source.start();
+    inst.sourceNode = source;
+  }
+
+  stopSampleLoop(soundId: string): void {
+    const inst = this.samples.get(soundId);
+    if (!inst || !inst.sourceNode) return;
+    const ctx = this.getCtx();
+    const now = ctx.currentTime;
+    const prevVol = inst.gainNode.gain.value;
+
+    inst.gainNode.gain.setValueAtTime(prevVol, now);
+    inst.gainNode.gain.linearRampToValueAtTime(0, now + FX_FADE_S);
+
+    const src = inst.sourceNode;
+    inst.sourceNode = null;
+    setTimeout(() => {
+      try { src.stop(); src.disconnect(); } catch { /* already stopped */ }
+      // Restore gain so future plays are audible
+      inst.gainNode.gain.setValueAtTime(prevVol, this.ctx!.currentTime);
+    }, FX_FADE_S * 1000 + 50);
+  }
+
   setVolume(soundId: string, vol: number): void {
     const inst = this.samples.get(soundId);
     if (!inst) return;

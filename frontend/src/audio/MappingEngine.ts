@@ -40,6 +40,7 @@ function evaluateMapping(
   stored: StoredMapping,
   currentValues: Map<string, number>,
   prevValues: Map<string, number>,
+  activeSamples: Map<string, boolean>, // uuid → condition was met last tick
   activeHarps: Set<string>,
   activeControls: Map<string, boolean>, // uuid → whether condition was met last tick
 ): void {
@@ -51,13 +52,19 @@ function evaluateMapping(
       const current = currentValues.get(stored.indicatorName);
       if (current === undefined) return;
       const previous = prevValues.get(stored.indicatorName);
-      if (evalCondition(config.condition, current, previous)) {
-        // Ensure sample is loaded (may have been added before file was placed)
+      const condMet = evalCondition(config.condition, current, previous);
+      const wasActive = activeSamples.get(stored.uuid) ?? false;
+
+      if (condMet && !wasActive) {
         if (!audioEngine.isSampleLoaded(config.sound_id)) {
           void audioEngine.loadSample(config.sound_id, `/sounds/${config.sound_asset}`);
-          return; // will play on next matching tick after load
+          return; // will start on next matching tick after load
         }
-        audioEngine.playSample(config.sound_id, stored.volume);
+        audioEngine.startSampleLoop(config.sound_id, stored.volume);
+        activeSamples.set(stored.uuid, true);
+      } else if (!condMet && wasActive) {
+        audioEngine.stopSampleLoop(config.sound_id);
+        activeSamples.set(stored.uuid, false);
       }
       break;
     }
@@ -127,8 +134,9 @@ function evaluateMapping(
 
 export function useMappingEngine(): void {
   const marketData = useMarketData();
-  const prevValues    = useRef<Map<string, number>>(new Map());
-  const activeHarps   = useRef<Set<string>>(new Set());
+  const prevValues     = useRef<Map<string, number>>(new Map());
+  const activeSamples  = useRef<Map<string, boolean>>(new Map());
+  const activeHarps    = useRef<Set<string>>(new Set());
   const activeControls = useRef<Map<string, boolean>>(new Map());
 
   // Evaluate mappings on every market data update
@@ -148,7 +156,7 @@ export function useMappingEngine(): void {
 
     for (const stored of mappings) {
       if (stored.paused) continue;
-      evaluateMapping(stored, currentValues, prevValues.current, activeHarps.current, activeControls.current);
+      evaluateMapping(stored, currentValues, prevValues.current, activeSamples.current, activeHarps.current, activeControls.current);
     }
 
     // Save current as previous for next tick
@@ -157,9 +165,18 @@ export function useMappingEngine(): void {
     }
   }, [marketData]);
 
-  // Cleanup all harps on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
+      for (const [uuid, active] of activeSamples.current) {
+        if (active) {
+          // find the sound_id for this uuid to stop it
+          const mapping = getMappings().find(m => m.uuid === uuid);
+          if (mapping?.config.kind === 'event_sample') {
+            audioEngine.stopSampleLoop(mapping.config.sound_id);
+          }
+        }
+      }
       for (const synthId of activeHarps.current) {
         audioEngine.stopHarp(synthId);
       }
