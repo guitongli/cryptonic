@@ -2,7 +2,9 @@ import React from 'react';
 import { Search, Bell, Menu, User, ChevronDown, Zap } from 'lucide-react';
 import { useMarketData } from './MarketDataWrapper';
 
-export const Header: React.FC = () => {
+interface HeaderProps { onOpenMapping?: (key: string) => void; }
+
+export const Header: React.FC<HeaderProps> = ({ onOpenMapping }) => {
   const { currentPrice, priceChange } = useMarketData();
   const connecting = currentPrice === 0;
 
