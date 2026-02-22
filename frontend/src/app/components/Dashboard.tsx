@@ -45,7 +45,7 @@ export const Dashboard: React.FC = () => {
       <main className="max-w-[1600px] mx-auto p-6 space-y-6">
 
         {/* Section 2 + 3: Tape Feed + Indicator Row */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-[640px]">
           {/* Section 2: Tape Feed */}
           <div className="lg:col-span-4">
             <TapeFeed />
